@@ -1,15 +1,16 @@
 [project]
-name = "nanobot-ai"
+name = "nanobot-von-alex"
 version = "0.3.5"
-description = "A lightweight personal AI assistant framework"
+description = "Nanobot von Alex via Arena.ai - a tuned, self-hosted personal AI agent (fork of HKUDS/nanobot)"
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.11"
 license = {text = "MIT"}
 authors = [
-    {name = "Xubin Ren"},
-    {name = "the nanobot contributors"}
+    {name = "Alex"},
+    {name = "Xubin Ren (upstream HKUDS/nanobot)"},
+    {name = "the nanobot contributors"},
 ]
-keywords = ["ai", "agent", "chatbot"]
+keywords = ["ai", "agent", "chatbot", "nanobot", "arena"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",

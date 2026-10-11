@@ -3,6 +3,27 @@
   <img alt="nanobot README cover" src="./images/readme-cover-light.svg">
 </picture>
 
+# Nanobot von Alex via Arena.ai
+
+> Ein getunter, selbst-gehosteter Personal-AI-Agent.
+> Aufgebaut auf **[HKUDS/nanobot](https://github.com/HKUDS/nanobot)** (MIT-Lizenz).
+>
+> **Was hier anders ist als im Upstream:**
+> eine Tool-First-Reasoning-Ebene in `SOUL.md` / `AGENTS.md`, verifizierte
+> Modell-Presets mit gemessenen Denk-Budgets, und eine eigene Eval-Suite, die
+> „der Bot ist zu dumm" in eine Zahl verwandelt.
+>
+> | | |
+> |---|---|
+> | Anpassungen & Messwerte | [`customize/README.md`](./customize/README.md) |
+> | Eval-Suite | [`customize/eval/`](./customize/eval/) |
+> | Konfiguration installieren | `./customize/apply.sh` |
+> | Upstream-Dokumentation | [nanobot.wiki](https://nanobot.wiki) |
+>
+> Der gesamte Code unterhalb dieser Zeile stammt vom Upstream-Projekt. Die
+> Lizenz- und Copyright-Hinweise in [`LICENSE`](./LICENSE) und
+> [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md) bleiben unverändert gültig.
+
 <div align="center">
   <p>
     <a href="https://nanobot.wiki/docs/latest/getting-started/nanobot-overview">English</a> |

@@ -41,23 +41,93 @@ Das ist die komplette Kette: `config.json` → Provider-Route → Agent-Loop →
 
 ## Schnellstart
 
-```bash
-# 1. Konfiguration installieren (sichert vorhandene Dateien)
-./customize/apply.sh                      # Ziel: ~/.nanobot
-./customize/apply.sh --home /pfad/zur/instanz --dry-run   # erst ansehen
+Zwei Varianten — wähle die, die zu dir passt:
 
-# 2. API-Key setzen (die Config referenziert ihn als ${...})
+```bash
+# A) Mit API-Key (starkstes Denken)
+./customize/apply.sh                       # installiert config.json
 export ANTHROPIC_API_KEY=sk-ant-...
 
-# 3. Prüfen, ob ein Modell erkannt wird
-nanobot status
+# B) Schlüsselfrei über lokales Ollama (kostenlos, schwächer)
+./customize/apply.sh --variant ollama      # installiert config.ollama.json
+ollama pull qwen3:8b
 
-# 4. Messen
-python customize/eval/run_eval.py
+# Immer danach:
+nanobot status                             # muss "provider/model configuration is ready" zeigen
+python customize/eval/run_eval.py          # deine Zahl
+```
+
+Erst ansehen, ohne zu schreiben:
+
+```bash
+./customize/apply.sh --home /pfad --dry-run
 ```
 
 `apply.sh` überschreibt nichts ungefragt: vorhandene Dateien werden nach
 `*.bak-<zeitstempel>` gesichert.
+
+---
+
+## Stolperfalle: `${VAR}` ist strikt **und global**
+
+nanobot prüft **jeden String** in der Config auf das Muster `${NAME}` und bricht mit
+`ConfigLoadError` ab, wenn die Variable nicht gesetzt ist
+(`nanobot/config/loader.py:194` und `:295`). Zwei Konsequenzen, die man nicht erwartet:
+
+1. **Es gibt keine Default-Syntax.** `${VAR:-fallback}` funktioniert nicht. Das Muster
+   ist `\$\{([A-Za-z_][A-Za-z0-9_]*)\}` — entweder die Variable ist gesetzt oder es
+   gibt einen Fehler.
+
+2. **Die Prüfung ist global, nicht pro Preset.** Ein Eintrag
+   `providers.anthropic.apiKey = "${ANTHROPIC_API_KEY}"` blockiert den Start **auch
+   dann**, wenn das aktive Preset Ollama ist und gar keinen Key braucht.
+
+3. **Auch Kommentar-Felder werden geprüft.** Ein Hinweistext, der wörtlich
+   `${MEINE_VAR}` enthält, löst denselben Fehler aus. Getestet und verifiziert.
+
+Deshalb enthält `config.json` **genau einen** Platzhalter (`ANTHROPIC_API_KEY`) und
+`config.ollama.json` **keinen einzigen**. Wer einen anderen Anbieter nutzt, ersetzt den
+`providers`-Block — nicht ergänzt ihn.
+
+**Provider-Keys kommen nicht aus der Umgebung.** nanobot liest `ANTHROPIC_API_KEY` /
+`OPENAI_API_KEY` **nicht** automatisch; das `env_key`-Feld in der Provider-Registry wird
+nur für Sprachtranskription verwendet. Der Key muss in der Config stehen — wörtlich oder
+als `${...}`-Platzhalter. Verifiziert: `ANTHROPIC_API_KEY=... nanobot status` meldet ohne
+Config-Eintrag weiterhin „No API key configured".
+
+---
+
+## Kontext-Budget (gemessen)
+
+Der System-Prompt ist nicht kostenlos. Gemessen für einen CLI-Turn:
+
+| Bestandteil | Bytes |
+|---|---|
+| System-Prompt mit Upstream-Defaults | 3 979 |
+| System-Prompt mit `customize/SOUL.md` + `AGENTS.md` | 11 309 |
+| Zuwachs durch diese Prompts | **+7 330 (+184 %)** |
+| Tool-Schemas (13–25 Tools, je nach Konfiguration) | ~12 000–20 000 |
+
+Die Tool-Schemas sind also **teurer als der Prompt** — mit Abstand. Das ist der
+eigentliche Grund, warum kleine Kontextfenster überlaufen.
+
+### Achtung: der Schätzer zählt Bytes, nicht Tokens
+
+Wenn `tiktoken` nicht verfügbar ist (z. B. offline, denn das Encoding wird von einem
+OpenAI-Host nachgeladen), fällt nanobot auf eine **Byte-Heuristik** zurück
+(`nanobot/utils/helpers.py:828`). Die zählt 1 „Token" pro Byte und überschätzt damit
+grob. Folge: ein nominelles 32k-Fenster kann rechnerisch bei ~23 500 „Tokens"
+Eingabebudget landen, während der echte Tokenverbrauch viel niedriger wäre.
+
+Praktisch heißt das: **lokale Modelle brauchen ein größeres Fenster als man denkt.**
+Bei Ollama muss das Fenster zusätzlich serverseitig gesetzt werden
+(`OLLAMA_CONTEXT_LENGTH` bzw. `num_ctx`) — `contextWindowTokens` in der Config
+beschreibt nur, was nanobot annimmt.
+
+Wenn der Start mit `ContextWindowExceededError` abbricht, ist der Weg nach vorn:
+`contextWindowTokens` erhöhen **oder** den Tool-Umfang verkleinern. Die
+Keyless-Variante deaktiviert deshalb `cliApps` und `my` (`tools.cliApps.enable: false`,
+`tools.my.enable: false`) — bei kleinen Modellen zählt jedes Kilobyte Schema.
 
 ---
 
@@ -136,23 +206,59 @@ schwachen Modell aus dem Kopf und gelingt zuverlässig über das Tool.
 
 | Datei | Zweck |
 |---|---|
-| `config.json` | Getunte Konfiguration: 5 Modell-Presets, Fallback-Kette, angehobene Limits |
+| `config.json` | Variante mit API-Key: 5 Presets, Fallback-Kette, angehobene Limits |
+| `config.ollama.json` | Schlüsselfreie Variante für lokales Ollama, ohne jeden Platzhalter |
 | `SOUL.md` | Persona + Reasoning-Disziplin (Tool-first, Verifikation, Ehrlichkeit) |
 | `AGENTS.md` | Arbeitsanweisungen: Tool-Policy, Fehlerbehandlung, Cron/Heartbeat |
-| `apply.sh` | Installer mit Backup, `--dry-run` verfügbar |
+| `apply.sh` | Installer mit Backup, `--dry-run` und `--variant anthropic\|ollama` |
 | `eval/tasks.json` | 10 Aufgaben in 5 Kategorien mit maschinell erzeugten Sollwerten |
 | `eval/run_eval.py` | Eval-Harness, schreibt optional JSON-Bericht |
 | `eval/mock_provider.py` | Test-Double zur Verifikation der Pipeline (kein KI-Modell!) |
 
+### Name dieses Projekts
+
+Projektname: **Nanobot von Alex via Arena.ai**.
+
+| Ort | Wert |
+|---|---|
+| Distributionsname (`pip show`) | `nanobot-von-alex` |
+| Anzeigename im CLI | `Nanobot von Alex via Arena.ai` (`agents.defaults.botName`) |
+| Import-Paket | `nanobot` — **bewusst unverändert** |
+
+Warum der Distributionsname kürzer ist: PEP 508 erlaubt keine Leerzeichen und Punkte in
+Paketnamen — `pip install` lehnt `Nanobot von Alex via Arena.ai` ab (getestet). Der
+Anzeigename bleibt exakt wie gewünscht.
+
+Das Import-Paket `nanobot/` wurde **absichtlich nicht** umbenannt: 855 Python-Dateien
+importieren es, und jede Umbenennung würde das gesamte Projekt unbrauchbar machen und
+jedes Upstream-Update zu einem Merge-Konflikt. Der Name im Code ist eine interne
+Adresse, keine Marke.
+
 ### Enthaltene Presets
+
+`config.json` (Variante mit Key):
 
 | Preset | Modell | `effort` | `maxTokens` | Zweck |
 |---|---|---|---|---|
 | `primary` | `anthropic/claude-opus-4-5` | high | 16 384 | Standard, stärkstes Denken |
 | `deep` | `anthropic/claude-opus-4-5` | high | 32 768 | Lange Analyse, größeres Budget |
 | `balanced` | `anthropic/claude-sonnet-4.5` | medium | 16 384 | Günstiger, Fallback |
-| `fast` | `openai/gpt-4.1-mini` | low | 8 192 | Schnelle einfache Aufgaben |
+| `fast` | `anthropic/claude-sonnet-4.5` | low | 8 192 | Schnelle einfache Aufgaben |
 | `local` | `ollama/qwen3:8b` | high | 8 192 | Offline, kostenlos |
+
+Alle vier Cloud-Presets nutzen **denselben** Anbieter. Grund: die `${VAR}`-Prüfung ist
+global, ein zweiter Anbieter würde einen zweiten gesetzten Key erzwingen — und damit den
+Start blockieren, sobald er fehlt.
+
+`config.ollama.json` (schlüsselfrei):
+
+| Preset | Modell | `effort` | `contextWindowTokens` | Zweck |
+|---|---|---|---|---|
+| `local` | `ollama/qwen3:8b` | high | 32 768 | Standard, läuft auf 8–16 GB RAM |
+| `localBig` | `ollama/qwen3:32b` | high | 65 536 | Deutlich stärker, braucht ~24 GB RAM |
+
+Die Ollama-Tags sind Beispiele. Prüfe mit `ollama list`, welche Modelle du tatsächlich
+hast, und passe `model` im Preset an.
 
 Umschalten im Chat mit `/model <name>`. Die Fallback-Kette (`balanced`) greift, wenn
 das Primärmodell nicht erreichbar ist.
