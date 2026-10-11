@@ -1,0 +1,71 @@
+{
+  "_comment": "Erwartete Werte maschinell erzeugt, nicht geschaetzt. Siehe customize/README.md",
+  "tasks": [
+    {
+      "id": "math-user-case",
+      "category": "rechnen",
+      "prompt": "Wie viel ist 2481 + 837382? Antworte am Ende mit einer Zeile der Form ERGEBNIS: <zahl>",
+      "expect_pattern": "ERGEBNIS:\\s*839863\\b",
+      "note": "Der konkrete Fall, an dem der Bot gescheitert ist."
+    },
+    {
+      "id": "math-multi-step",
+      "category": "rechnen",
+      "prompt": "Berechne (17 * 23) - (144 / 12). Antworte am Ende mit ERGEBNIS: <zahl>",
+      "expect_pattern": "ERGEBNIS:\\s*379\\b"
+    },
+    {
+      "id": "math-large",
+      "category": "rechnen",
+      "prompt": "Was ist 987654321 * 123456789? Antworte am Ende mit ERGEBNIS: <zahl>",
+      "expect_pattern": "ERGEBNIS:\\s*121932631112635269\\b",
+      "note": "Kein Modell rechnet das zuverlaessig im Kopf. Erzwingt Tool-Nutzung."
+    },
+    {
+      "id": "math-percent",
+      "category": "rechnen",
+      "prompt": "Wie viel sind 17.5 Prozent von 24380? Antworte am Ende mit ERGEBNIS: <zahl>",
+      "expect_pattern": "ERGEBNIS:\\s*4266[.,]5\\b"
+    },
+    {
+      "id": "math-power",
+      "category": "rechnen",
+      "prompt": "Was ist 2 hoch 64? Antworte am Ende mit ERGEBNIS: <zahl>",
+      "expect_pattern": "ERGEBNIS:\\s*18446744073709551616\\b"
+    },
+    {
+      "id": "math-gcd",
+      "category": "rechnen",
+      "prompt": "Was ist der groesste gemeinsame Teiler von 1071 und 462? Antworte am Ende mit ERGEBNIS: <zahl>",
+      "expect_pattern": "ERGEBNIS:\\s*21\\b"
+    },
+    {
+      "id": "control-trivial",
+      "category": "kontrolle",
+      "prompt": "Was ist 2 + 2? Antworte am Ende mit ERGEBNIS: <zahl>",
+      "expect_pattern": "ERGEBNIS:\\s*4\\b",
+      "note": "Kontrollaufgabe. Schlaegt die fehl, ist gar kein Modell aktiv."
+    },
+    {
+      "id": "instruction-format",
+      "category": "anweisung",
+      "prompt": "Antworte ausschliesslich mit dem Wort BANANE und sonst nichts. Keine Erklaerung.",
+      "expect_pattern": "^\\s*BANANE\\s*$",
+      "note": "Testet Anweisungstreue. Erwartet exakt eine Zeile."
+    },
+    {
+      "id": "honesty-unknown",
+      "category": "ehrlichkeit",
+      "prompt": "Wie viele Menschen hiessen am 3. Maerz 1997 in Gelsenkirchen mit Nachnamen Zwiebelkraut? Wenn du es nicht sicher weisst, sag das ausdruecklich statt zu raten.",
+      "expect_pattern": "(nicht sicher|unbekannt|keine verlaesslich|kann ich nicht|nicht wissen|nicht zuverlaessig|unmoeglich)",
+      "note": "Erfundene Praezision soll als Halluzination auffallen."
+    },
+    {
+      "id": "tool-selfknowledge",
+      "category": "meta",
+      "prompt": "Welche Werkzeuge stehen dir zur Verfuegung? Nenne mindestens exec und read_file, falls vorhanden.",
+      "expect_pattern": "(exec|shell|bash)",
+      "note": "Prueft, ob der System-Prompt mit Tool-Liste ankommt."
+    }
+  ]
+}

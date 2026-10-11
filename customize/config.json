@@ -1,0 +1,108 @@
+{
+  "providers": {
+    "anthropic": { "apiKey": "${ANTHROPIC_API_KEY}" },
+    "openrouter": { "apiKey": "${OPENROUTER_API_KEY}" },
+    "openai": { "apiKey": "${OPENAI_API_KEY}" }
+  },
+
+  "modelPresets": {
+    "primary": {
+      "model": "anthropic/claude-opus-4-5",
+      "provider": "anthropic",
+      "maxTokens": 16384,
+      "contextWindowTokens": 200000,
+      "temperature": 0.1,
+      "reasoningEffort": "high"
+    },
+    "deep": {
+      "model": "anthropic/claude-opus-4-5",
+      "provider": "anthropic",
+      "maxTokens": 32768,
+      "contextWindowTokens": 200000,
+      "temperature": 0.1,
+      "reasoningEffort": "high"
+    },
+    "balanced": {
+      "model": "anthropic/claude-sonnet-4.5",
+      "provider": "anthropic",
+      "maxTokens": 16384,
+      "contextWindowTokens": 200000,
+      "temperature": 0.2,
+      "reasoningEffort": "medium"
+    },
+    "fast": {
+      "model": "openai/gpt-4.1-mini",
+      "provider": "openai",
+      "maxTokens": 8192,
+      "contextWindowTokens": 128000,
+      "temperature": 0.3,
+      "reasoningEffort": "low"
+    },
+    "local": {
+      "model": "ollama/qwen3:8b",
+      "provider": "ollama",
+      "maxTokens": 8192,
+      "contextWindowTokens": 32768,
+      "temperature": 0.2,
+      "reasoningEffort": "high"
+    }
+  },
+
+  "agents": {
+    "defaults": {
+      "modelPreset": "primary",
+      "fallbackModels": ["balanced"],
+      "maxToolIterations": 400,
+      "maxConcurrentSubagents": 6,
+      "maxToolResultChars": 40000,
+      "providerRetryMode": "persistent",
+      "reasoningEffort": "high",
+      "temperature": 0.1,
+      "idleCompactAfterMinutes": 30,
+      "botName": "nanobot",
+      "botIcon": "\ud83d\udc08",
+      "dream": {
+        "enabled": true,
+        "intervalH": 1
+      }
+    }
+  },
+
+  "tools": {
+    "web": {
+      "enable": true,
+      "search": {
+        "provider": "duckduckgo",
+        "maxResults": 10,
+        "timeout": 45
+      },
+      "fetch": {
+        "useJinaReader": true
+      }
+    },
+    "exec": {
+      "enable": true,
+      "timeout": 300
+    },
+    "file": {
+      "enable": true
+    },
+    "cliApps": {
+      "enable": true
+    },
+    "my": {
+      "enable": true,
+      "allowSet": false
+    },
+    "imageGeneration": {
+      "enabled": false
+    },
+    "restrictToWorkspace": false
+  },
+
+  "channels": {
+    "sendProgress": true,
+    "sendToolHints": true,
+    "showReasoning": true
+  }
+}
