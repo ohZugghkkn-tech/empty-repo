@@ -58,7 +58,7 @@
       "reasoningEffort": "high",
       "temperature": 0.1,
       "idleCompactAfterMinutes": 30,
-      "botName": "Nanobot von Alex via Arena.ai",
+      "botName": "Nanobot von Alex",
       "botIcon": "\ud83d\udc08",
       "dream": {
         "enabled": true,

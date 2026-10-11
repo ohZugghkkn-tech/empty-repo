@@ -222,7 +222,7 @@ Projektname: **Nanobot von Alex via Arena.ai**.
 | Ort | Wert |
 |---|---|
 | Distributionsname (`pip show`) | `nanobot-von-alex` |
-| Anzeigename im CLI | `Nanobot von Alex via Arena.ai` (`agents.defaults.botName`) |
+| Anzeigename im CLI | `Nanobot von Alex` (`agents.defaults.botName`) |
 | Import-Paket | `nanobot` — **bewusst unverändert** |
 
 Warum der Distributionsname kürzer ist: PEP 508 erlaubt keine Leerzeichen und Punkte in
