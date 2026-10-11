@@ -141,11 +141,6 @@ class Handler(BaseHTTPRequestHandler):
             )
 
         messages = request.get("messages") or []
-        text = "\n".join(
-            str(m.get("content") or "")
-            for m in messages
-            if isinstance(m, dict) and m.get("role") in ("user", "tool")
-        )
         model = request.get("model") or "mock/solver"
 
         # Phase 2: a tool result is present -> turn it into the final answer.

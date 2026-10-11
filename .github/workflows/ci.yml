@@ -113,6 +113,12 @@ jobs:
                 tui/*)
                   tui_required=true
                   ;;
+                customize/*|CHANGELOG.md|docs/FORK_QUICKSTART.md)
+                  # Fork-eigene Ebene (Konfiguration, Pruefer, Eval-Harness, Doku).
+                  # Sie wird von .github/workflows/customize-ci.yml geprueft und
+                  # aendert keinen nanobot-Code, also braucht sie weder Python-,
+                  # WebUI-, TUI- noch Docker-Jobs.
+                  ;;
                 docs/*|.agent/*|.github/ISSUE_TEMPLATE/*|AGENTS.md|CLAUDE.md|COMMUNICATION.md|CONTRIBUTING.md|README.md|SECURITY.md|webui/README.md|render.yaml)
                   # Documentation-only changes are already filtered at the event level.
                   ;;

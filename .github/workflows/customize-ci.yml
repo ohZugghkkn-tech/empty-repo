@@ -1,0 +1,231 @@
+name: Fork Checks (Customize)
+
+# Fork-eigene Pruefungen. Upstream-Pruefungen laufen weiter in ci.yml.
+# Kein API-Key noetig: der Eval-Smoke-Test nutzt den Mock-Provider.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - customize/**
+      - docs/FORK_QUICKSTART.md
+      - CHANGELOG.md
+      - pyproject.toml
+      - .github/workflows/customize-ci.yml
+  pull_request:
+    branches: [main]
+    paths:
+      - customize/**
+      - docs/FORK_QUICKSTART.md
+      - CHANGELOG.md
+      - pyproject.toml
+      - .github/workflows/customize-ci.yml
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Dieselben Versionen wie lokal verifiziert - neue Regeln sollen das Gate
+  # nicht von heute auf morgen rot machen.
+  RUFF_VERSION: "0.17.0"
+  SHELLCHECK_PY_VERSION: "0.11.0.1"
+
+jobs:
+  static:
+    name: Config, Skripte, Fork-Tracking
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          # Kein Cache: Dieses Repository hat keine uv.lock, und der Cache-Schritt
+          # bricht dann mit "No file matched to [**/uv.lock]" ab.
+          enable-cache: false
+
+      - name: Pruefer selbst testen
+        run: python3 customize/validate_config.py --self-test
+
+      - name: Konfigurationen ohne Umgebung pruefen
+        # Ohne ANTHROPIC_API_KEY: Warnung erwartet, Fehler nicht.
+        run: python3 customize/validate_config.py
+
+      - name: Konfigurationen streng pruefen (Key gesetzt)
+        run: |
+          ANTHROPIC_API_KEY=ci-placeholder \
+            python3 customize/validate_config.py --strict \
+              --json "$RUNNER_TEMP/config-report.json"
+
+      - name: Fork-Version und Upstream-Basis pruefen
+        run: |
+          python3 customize/check_version.py --self-test
+          python3 customize/check_version.py
+
+      - name: Shell-Syntax
+        run: bash -n customize/apply.sh
+
+      - name: ShellCheck
+        run: >-
+          uvx --from "shellcheck-py==${SHELLCHECK_PY_VERSION}"
+          shellcheck --severity=style customize/apply.sh
+
+      - name: Ruff
+        run: uvx --from "ruff==${RUFF_VERSION}" ruff check customize/
+
+      - name: Bericht hochladen
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: config-report
+          path: ${{ runner.temp }}/config-report.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+  smoke:
+    name: Eval-Smoke-Test und Installer
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          # Kein Cache: Dieses Repository hat keine uv.lock, und der Cache-Schritt
+          # bricht dann mit "No file matched to [**/uv.lock]" ab.
+          enable-cache: false
+
+      - name: Abhaengigkeiten installieren
+        run: uv sync
+
+      - name: Schluesselfreie Konfiguration startet ohne Umgebung
+        run: |
+          set -eu
+          mkdir -p "$RUNNER_TEMP/nb-keyless/workspace"
+          cp customize/config.ollama.json "$RUNNER_TEMP/nb-keyless/config.json"
+          output="$(uv run --no-sync nanobot --home "$RUNNER_TEMP/nb-keyless" status)"
+          printf '%s\n' "$output"
+          grep -q "provider/model configuration is ready" <<< "$output"
+
+      - name: Mock-Provider starten
+        run: |
+          set -eu
+          uv run --no-sync python customize/eval/mock_provider.py --port 8099 \
+            > "$RUNNER_TEMP/mock-provider.log" 2>&1 &
+          for _ in $(seq 1 30); do
+            if python3 -c "import socket; socket.create_connection(('127.0.0.1', 8099), 1).close()" 2>/dev/null; then
+              echo "Mock-Provider erreichbar."
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Mock-Provider nicht erreichbar:" >&2
+          cat "$RUNNER_TEMP/mock-provider.log" >&2
+          exit 1
+
+      - name: Mock-Instanz anlegen
+        run: |
+          set -eu
+          mkdir -p "$RUNNER_TEMP/nb-mock/workspace"
+          cat > "$RUNNER_TEMP/nb-mock/config.json" <<'JSON'
+          {
+            "providers": { "custom": { "apiBase": "http://127.0.0.1:8099/v1" } },
+            "modelPresets": { "mock": { "model": "mock/solver", "provider": "custom" } },
+            "agents": { "defaults": { "modelPreset": "mock" } }
+          }
+          JSON
+
+      - name: Eval gegen den Mock laufen lassen
+        env:
+          NANOBOT_BIN: .venv/bin/nanobot
+        run: |
+          uv run --no-sync python customize/eval/run_eval.py \
+            --home "$RUNNER_TEMP/nb-mock" \
+            --timeout 90 \
+            --json "$RUNNER_TEMP/eval-report.json"
+
+      - name: 10 von 10 bestaetigen
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          report = json.loads(
+              Path(os.environ["RUNNER_TEMP"], "eval-report.json").read_text(encoding="utf-8")
+          )
+          summary = {k: report[k] for k in ("passed", "total", "percent", "no_model_configured")}
+          print(json.dumps(summary, indent=2))
+          assert report["total"] == 10, report
+          assert report["passed"] == report["total"], report
+          assert report["percent"] == 100.0, report
+          assert report["no_model_configured"] is False, report
+          PY
+
+      - name: Installer - Dry Run schreibt nichts
+        run: |
+          set -eu
+          out="$(./customize/apply.sh --variant ollama --dry-run --home "$RUNNER_TEMP/inst")"
+          printf '%s\n' "$out"
+          grep -q "Dry Run" <<< "$out"
+          test ! -e "$RUNNER_TEMP/inst"
+
+      - name: Installer - echte Installation ist wiederholbar
+        run: |
+          set -eu
+          ./customize/apply.sh --variant ollama --home "$RUNNER_TEMP/inst" --quiet
+          test -f "$RUNNER_TEMP/inst/config.json"
+          test -f "$RUNNER_TEMP/inst/workspace/SOUL.md"
+          test -f "$RUNNER_TEMP/inst/workspace/AGENTS.md"
+          second="$(./customize/apply.sh --variant ollama --home "$RUNNER_TEMP/inst" --quiet)"
+          printf '%s\n' "$second"
+          grep -q "0 Datei(en) geschrieben" <<< "$second"
+          output="$(uv run --no-sync nanobot --home "$RUNNER_TEMP/inst" status)"
+          grep -q "provider/model configuration is ready" <<< "$output"
+
+      - name: Installer - auto waehlt die Key-Variante, wenn der Key gesetzt ist
+        run: |
+          set -eu
+          out="$(ANTHROPIC_API_KEY=ci-placeholder ./customize/apply.sh --dry-run --home "$RUNNER_TEMP/auto")"
+          printf '%s\n' "$out"
+          grep -q "Variante:       anthropic" <<< "$out"
+          test ! -e "$RUNNER_TEMP/auto"
+
+      - name: Installer - ohne Key und ohne Ollama wird gewarnt
+        run: |
+          set -eu
+          # OLLAMA_HOST ins Leere zeigen, damit die Erkennung deterministisch bleibt.
+          out="$(env -u ANTHROPIC_API_KEY OLLAMA_HOST=http://127.0.0.1:1 \
+            ./customize/apply.sh --dry-run --home "$RUNNER_TEMP/auto2")"
+          printf '%s\n' "$out"
+          grep -q "startet erst nach dem Export" <<< "$out"
+          test ! -e "$RUNNER_TEMP/auto2"
+
+      - name: Installer - unbekannte Variante bricht ab
+        run: |
+          set -eu
+          if ./customize/apply.sh --variant does-not-exist --home "$RUNNER_TEMP/never"; then
+            echo "FEHLER: unbekannte Variante wurde akzeptiert." >&2
+            exit 1
+          fi
+          test ! -e "$RUNNER_TEMP/never"
+
+      - name: Berichte hochladen
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-report
+          path: |
+            ${{ runner.temp }}/eval-report.json
+            ${{ runner.temp }}/mock-provider.log
+          if-no-files-found: ignore
+          retention-days: 7

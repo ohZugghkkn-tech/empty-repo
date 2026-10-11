@@ -24,7 +24,7 @@
       "fallbackModels": [],
       "maxToolIterations": 400,
       "maxConcurrentSubagents": 4,
-      "maxToolResultChars": 40000,
+      "maxToolResultChars": 8192,
       "providerRetryMode": "persistent",
       "reasoningEffort": "high",
       "temperature": 0.2,

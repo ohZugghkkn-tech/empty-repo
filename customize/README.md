@@ -41,12 +41,24 @@ Das ist die komplette Kette: `config.json` → Provider-Route → Agent-Loop →
 
 ## Schnellstart
 
-Zwei Varianten — wähle die, die zu dir passt:
+Ein Befehl reicht — `apply.sh` wählt die Variante selbst:
+
+```bash
+./customize/apply.sh
+```
+
+Die Auswahl (`--variant auto`, Standard) folgt drei Regeln: Ist die
+Umgebungsvariable der Key-Variante gesetzt, wird `config.json` installiert. Sonst:
+antwortet Ollama lokal, wird die schlüsselfreie Variante installiert. Sonst wird
+die Key-Variante installiert — mit deutlicher Warnung, dass sie erst nach dem
+Export startet.
+
+Erzwingen lässt sich jede Variante:
 
 ```bash
 # A) Mit API-Key (starkstes Denken)
-./customize/apply.sh                       # installiert config.json
 export ANTHROPIC_API_KEY=sk-ant-...
+./customize/apply.sh --variant anthropic   # installiert config.json
 
 # B) Schlüsselfrei über lokales Ollama (kostenlos, schwächer)
 ./customize/apply.sh --variant ollama      # installiert config.ollama.json
@@ -57,14 +69,49 @@ nanobot status                             # muss "provider/model configuration 
 python customize/eval/run_eval.py          # deine Zahl
 ```
 
-Erst ansehen, ohne zu schreiben:
+Erst ansehen, ohne zu schreiben — der Dry Run zeigt den echten Plan inklusive
+Prüfergebnis, Sicherungen und Schreibrechten:
 
 ```bash
 ./customize/apply.sh --home /pfad --dry-run
 ```
 
 `apply.sh` überschreibt nichts ungefragt: vorhandene Dateien werden nach
-`*.bak-<zeitstempel>` gesichert.
+`*.bak-<zeitstempel>` gesichert, identische Dateien bleiben unangetastet. Vor dem
+Schreiben läuft der Konfigurationsprüfer (`validate_config.py`); erst bei Fehlern
+bricht die Installation ab (`--no-validate` überspringt die Prüfung).
+
+---
+
+## Prüfen statt starten: `validate_config.py`
+
+Der Prüfer findet die Fehler, die sonst erst beim Start auffallen — allen voran
+die drei Fallen weiter unten. Er braucht **keine** Bibliotheken außer der
+Standardbibliothek und keinen API-Key:
+
+```bash
+python customize/validate_config.py                 # beide Varianten
+python customize/validate_config.py --strict        # Warnungen zählen als Fehler
+python customize/validate_config.py --self-test     # 9 eingebaute Fallen
+python customize/validate_config.py --json bericht.json
+```
+
+Geprüft wird:
+
+| Prüfung | Warum |
+|---|---|
+| `${VAR}`-Platzhalter, global über alle Strings | Ein nicht gesetzter Wert blockiert den Start komplett |
+| `${VAR:-fallback}` | Diese Syntax gibt es nicht — nanobot kennt nur `${VAR}` |
+| Platzhalter in `config.ollama.json` | Die schlüsselfreie Variante muss ohne Umgebung starten |
+| `modelPreset` / `fallbackModels` ohne Ziel | Preset-Tippfehler fallen sonst erst im Betrieb auf |
+| Preset-Provider ohne `apiKey` | Häufigster Konfigurationsfehler nach dem Umbau auf einen anderen Anbieter |
+| `maxTokens` ≥ `contextWindowTokens` | Kann nie funktionieren |
+| `xhigh` / `max` bei manuellen Denk-Budgets | Sind dort **schlechter** als `high` (siehe Messwerte) |
+| Klartext-Schlüssel (`sk-…`) in der Datei | Die Config liegt im Git — Keys gehören dort nicht hinein |
+
+Exit-Codes: `0` = startklar, `1` = Befund, `2` = Aufruf- oder Dateifehler. Die
+Fork-CI (`.github/workflows/customize-ci.yml`) lässt den Prüfer samt Selbsttest
+bei jeder Änderung an `customize/` laufen.
 
 ---
 
@@ -128,6 +175,12 @@ Wenn der Start mit `ContextWindowExceededError` abbricht, ist der Weg nach vorn:
 `contextWindowTokens` erhöhen **oder** den Tool-Umfang verkleinern. Die
 Keyless-Variante deaktiviert deshalb `cliApps` und `my` (`tools.cliApps.enable: false`,
 `tools.my.enable: false`) — bei kleinen Modellen zählt jedes Kilobyte Schema.
+
+Aus demselben Grund deckelt die Keyless-Variante einzelne Tool-Ergebnisse auf
+`maxToolResultChars: 8192`. Vorher (40000) konnte **ein einziger** Befehl wie
+`cat große-datei` das 32k-Fenster allein sprengen — der Lauf brach dann mit
+`ContextWindowExceededError` ab, obwohl die Konfiguration sonst stimmte. Der
+Prüfer meldet diese Kombination als Warnung (`--strict` macht sie zum Fehler).
 
 ---
 
@@ -210,10 +263,18 @@ schwachen Modell aus dem Kopf und gelingt zuverlässig über das Tool.
 | `config.ollama.json` | Schlüsselfreie Variante für lokales Ollama, ohne jeden Platzhalter |
 | `SOUL.md` | Persona + Reasoning-Disziplin (Tool-first, Verifikation, Ehrlichkeit) |
 | `AGENTS.md` | Arbeitsanweisungen: Tool-Policy, Fehlerbehandlung, Cron/Heartbeat |
-| `apply.sh` | Installer mit Backup, `--dry-run` und `--variant anthropic\|ollama` |
+| `apply.sh` | Installer: `--variant auto\|anthropic\|ollama`, `--dry-run`, Backup, Prüfung vor dem Schreiben |
+| `validate_config.py` | Konfigurationsprüfer mit `--strict`, `--json` und `--self-test` |
+| `check_version.py` | Prüft Fork-Version und Upstream-Basis (`CHANGELOG.md` ↔ `pyproject.toml`) |
 | `eval/tasks.json` | 10 Aufgaben in 5 Kategorien mit maschinell erzeugten Sollwerten |
 | `eval/run_eval.py` | Eval-Harness, schreibt optional JSON-Bericht |
 | `eval/mock_provider.py` | Test-Double zur Verifikation der Pipeline (kein KI-Modell!) |
+
+Zur Fork-Ebene gehören außerdem: [`docs/FORK_QUICKSTART.md`](../docs/FORK_QUICKSTART.md)
+(deutscher Schnellstart), [`CHANGELOG.md`](../CHANGELOG.md) (Fork-Tracking und
+Versionierung) und [`.github/workflows/customize-ci.yml`](../.github/workflows/customize-ci.yml)
+(CI-Gate ohne API-Key: Selbsttest, Prüfer, ShellCheck, Ruff, Eval-Smoke-Test
+gegen den Mock-Provider, Installer-Smoke-Test).
 
 ### Name dieses Projekts
 
