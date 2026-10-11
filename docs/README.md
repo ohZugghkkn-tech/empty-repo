@@ -1,5 +1,9 @@
 # nanobot Documentation
 
+> **Fork "Nanobot von Alex" — deutscher Schnellstart:**
+> [`FORK_QUICKSTART.md`](./FORK_QUICKSTART.md). Diese Seite und alle weiteren
+> Dokumente hier sind die Upstream-Dokumentation und bleiben englisch.
+
 Use these docs to get a working agent first, then open a task guide only when you need the next capability. Source-level design and extension details are kept in the contributor section.
 
 Repository docs follow the current source tree and can be newer than the latest package release. For published release docs, visit [nanobot.wiki](https://nanobot.wiki/docs/latest/getting-started/nanobot-overview).

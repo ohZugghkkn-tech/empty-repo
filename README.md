@@ -15,9 +15,12 @@
 >
 > | | |
 > |---|---|
+> | **Schnellstart (deutsch, 3 Minuten)** | [`docs/FORK_QUICKSTART.md`](./docs/FORK_QUICKSTART.md) |
 > | Anpassungen & Messwerte | [`customize/README.md`](./customize/README.md) |
 > | Eval-Suite | [`customize/eval/`](./customize/eval/) |
-> | Konfiguration installieren | `./customize/apply.sh` |
+> | Konfiguration installieren | `./customize/apply.sh` (wählt die Variante automatisch) |
+> | Konfiguration prüfen | `python customize/validate_config.py --strict` |
+> | Änderungen dieses Forks | [`CHANGELOG.md`](./CHANGELOG.md) |
 > | Upstream-Dokumentation | [nanobot.wiki](https://nanobot.wiki) |
 >
 > Der gesamte Code unterhalb dieser Zeile stammt vom Upstream-Projekt. Die
