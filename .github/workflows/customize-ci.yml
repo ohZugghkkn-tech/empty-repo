@@ -47,7 +47,9 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v4
         with:
-          enable-cache: true
+          # Kein Cache: Dieses Repository hat keine uv.lock, und der Cache-Schritt
+          # bricht dann mit "No file matched to [**/uv.lock]" ab.
+          enable-cache: false
 
       - name: Pruefer selbst testen
         run: python3 customize/validate_config.py --self-test
@@ -98,8 +100,9 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v4
         with:
-          enable-cache: true
-          cache-dependency-glob: pyproject.toml
+          # Kein Cache: Dieses Repository hat keine uv.lock, und der Cache-Schritt
+          # bricht dann mit "No file matched to [**/uv.lock]" ab.
+          enable-cache: false
 
       - name: Abhaengigkeiten installieren
         run: uv sync
